@@ -10,6 +10,12 @@ pub struct Embeddings {
     dim: usize,
 }
 
+/// Load embeddings from a text file in the following format:
+/// word1 v1 v2 v3 ...
+/// word2 v1 v2 v3 ...
+/// ...
+/// The first line can optionally contain the number of words and the dimension,
+/// but it will be ignored in this implementation.
 pub fn load_txt(filepath: &Path) -> Embeddings {
     let content: String =
         std::fs::read_to_string(filepath).expect("Failed to read the embeddings file");
@@ -38,7 +44,8 @@ pub fn load_txt(filepath: &Path) -> Embeddings {
                 "Dimension: {}. {:?} -> {:?}",
                 embeddings.dim, &word, &values
             );
-        } else if idx > 1 { // skip first line
+        } else if idx > 1 {
+            // skip first line
             assert!(
                 values.len() == embeddings.dim,
                 "embedding dimension mismatch at word {:?}: expected {}, got {}",
@@ -53,6 +60,15 @@ pub fn load_txt(filepath: &Path) -> Embeddings {
     }
 
     embeddings
+}
+
+pub fn tokenize(query: &str) -> Vec<String> {
+    query
+        .to_lowercase()
+        .split_whitespace()
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 #[cfg(test)]
