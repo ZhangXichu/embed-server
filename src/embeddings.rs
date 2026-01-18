@@ -83,10 +83,41 @@ impl Embeddings {
     }
 
     pub fn embed_tokens<'a>(
+            &self,
             tokens: impl IntoIterator<Item = &'a str>
         ) -> Option<Vec<f32>> {
 
-        Option::None
+        let mut sum = vec![0.0f32; self.dim];
+        let mut count = 0usize;
+
+        for token in tokens {
+            let &row = match self.vocab.get(token) {
+                Some(r) => r,
+                None => continue, 
+            };
+
+            let start = row * self.dim;
+            let end = start + self.dim;
+            let vec = &self.data[start..end];
+
+            for (s, &v) in sum.iter_mut().zip(vec.iter()) {
+                *s += v;
+            }
+
+            count += 1;
+        }
+
+        if count == 0 {
+            return None;
+        }
+
+        // averaging
+        let inv = 1.0 / count as f32;
+        for v in &mut sum {
+            *v *= inv;
+        }
+
+        Some(sum)
     }
 
 }
@@ -127,6 +158,51 @@ mod tests {
 
         for (i, (a, b)) in emb.data.iter().zip(expected.iter()).enumerate() {
             assert!((a - b).abs() < 1e-6, "mismatch at index {i}: {a} vs {b}");
+        }
+    }
+
+    #[test]
+    fn test_embed_tokens_average() {
+        let path = Path::new("toy_embed.txt");
+        let emb = Embeddings::load_txt(path);
+
+        // Average of king + queen
+        // king:  0.1 0.2 0.3 0.4
+        // queen: 1.0 2.0 3.0 4.0
+        // avg:   0.55 1.10 1.65 2.20
+        let v = emb
+            .embed_tokens(["king", "queen"].into_iter())
+            .expect("expected Some(vec) for in-vocab tokens");
+
+        let expected = vec![0.55, 1.10, 1.65, 2.20];
+
+        assert_eq!(v.len(), expected.len());
+        for (i, (a, b)) in v.iter().zip(expected.iter()).enumerate() {
+            assert!(
+                (a - b).abs() < 1e-6,
+                "mismatch at index {i}: {a} vs {b}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_embed_tokens_oov() {
+        let path = Path::new("toy_embed.txt");
+        let emb = Embeddings::load_txt(path);
+
+        // "oov" is skipped, so this should equal embedding("man")
+        let v = emb
+            .embed_tokens(["oov", "man"].into_iter())
+            .expect("expected Some(vec) when at least one token is in-vocab");
+
+        let expected = vec![-0.5, 0.0, 0.5, 1.5];
+
+        assert_eq!(v.len(), expected.len());
+        for (i, (a, b)) in v.iter().zip(expected.iter()).enumerate() {
+            assert!(
+                (a - b).abs() < 1e-6,
+                "mismatch at index {i}: {a} vs {b}"
+            );
         }
     }
 }
