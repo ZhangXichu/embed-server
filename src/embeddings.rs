@@ -4,6 +4,8 @@ use std::{
     path::Path,
 };
 
+use std::collections::HashSet;
+
 pub struct Embeddings {
     vocab: HashMap<String, usize>,
     data: Vec<f32>,
@@ -123,11 +125,18 @@ impl Embeddings {
 }
 
 pub fn tokenize(query: &str) -> Vec<String> {
+    let stop_words: HashSet<&'static str> = [
+        "the", "is", "of", "and", "to", "for", "a", "an", "in", "on", "at",
+        "by", "with", "from", "as", "that", "this", "it", "be", "are",
+    ]
+    .into_iter()
+    .collect();
+
     query
         .to_lowercase()
         .split_whitespace()
         .map(|s| s.to_string())
-        .filter(|s| !s.is_empty())
+        .filter(|s| !s.is_empty() && !stop_words.contains(s.as_str()))
         .collect()
 }
 
@@ -204,5 +213,11 @@ mod tests {
                 "mismatch at index {i}: {a} vs {b}"
             );
         }
+    }
+
+    #[test]
+    fn test_tokenize() {
+        let query = "  the   best   chess  openning    ";
+        assert_eq!(tokenize(query), vec!["best", "chess", "openning"]);
     }
 }
