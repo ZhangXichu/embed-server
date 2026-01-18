@@ -10,56 +10,85 @@ pub struct Embeddings {
     dim: usize,
 }
 
-/// Load embeddings from a text file in the following format:
-/// word1 v1 v2 v3 ...
-/// word2 v1 v2 v3 ...
-/// ...
-/// The first line can optionally contain the number of words and the dimension,
-/// but it will be ignored in this implementation.
-pub fn load_txt(filepath: &Path) -> Embeddings {
-    let content: String =
-        std::fs::read_to_string(filepath).expect("Failed to read the embeddings file");
+impl Embeddings {
 
-    let mut embeddings = Embeddings {
-        vocab: HashMap::new(),
-        data: Vec::new(),
-        dim: 0,
-    };
+    /// Load embeddings from a text file in the following format:
+    /// word1 v1 v2 v3 ...
+    /// word2 v1 v2 v3 ...
+    /// ...
+    /// The first line can optionally contain the number of words and the dimension,
+    /// but it will be ignored in this implementation.
+    pub fn load_txt(filepath: &Path) -> Self {
+        let content: String =
+            std::fs::read_to_string(filepath).expect("Failed to read the embeddings file");
 
-    for (idx, line) in content.lines().enumerate() {
-        let mut iter = line.split_whitespace();
-        let word = iter.next().expect("missing word");
-        let values: Vec<f32> = iter
-            .map(|x| x.parse::<f32>().expect("failed to parse float"))
-            .collect();
+        let mut embeddings = Embeddings {
+            vocab: HashMap::new(),
+            data: Vec::new(),
+            dim: 0,
+        };
 
-        if values.is_empty() {
-            panic!("empty word");
-        }
+        let mut word_counter: usize = 0;
 
-        if idx == 1 {
-            embeddings.dim = values.len();
+        for (idx, line) in content.lines().enumerate() {
+            let mut iter = line.split_whitespace();
 
-            println!(
-                "Dimension: {}. {:?} -> {:?}",
-                embeddings.dim, &word, &values
-            );
-        } else if idx > 1 {
-            // skip first line
+            let first = match iter.next() {
+                Some(v) => v,
+                None => continue,
+            };
+
+            // ---- fastText header: "N D" on first line ----
+            if idx == 0 {
+                let second = iter.next();
+                if let (Some(n), Some(d)) = (first.parse::<usize>().ok(), second.and_then(|s| s.parse::<usize>().ok())) {
+                    embeddings.dim = d;
+                    assert!(embeddings.dim > 0, "embedding dimension must be > 0");
+                    println!("Header detected: {} words, dim = {}", n, d);
+                    continue; // skip header line
+                }
+                // else: fall through → first line is a normal embedding
+            }
+
+            let word = first;
+
+            let values: Vec<f32> = iter
+                .map(|x| x.parse::<f32>().expect("failed to parse float"))
+                .collect();
+
+            if values.is_empty() {
+                continue;
+            }
+
             assert!(
                 values.len() == embeddings.dim,
-                "embedding dimension mismatch at word {:?}: expected {}, got {}",
+                "embedding dimension mismatch for word {:?}, at line {}: expected {}, got {}",
                 &word,
+                idx,
                 embeddings.dim,
                 values.len()
             );
+
+            embeddings.vocab.insert(word.to_string(), word_counter);
+            embeddings.data.extend_from_slice(&values);
+
+            if word_counter == 0 {
+                println!("word '{}' -> {:?}", word, &values);
+            }
+
+            word_counter += 1;
         }
 
-        embeddings.vocab.insert(word.to_string(), idx);
-        embeddings.data.extend_from_slice(&values);
+        embeddings
     }
 
-    embeddings
+    pub fn embed_tokens<'a>(
+            tokens: impl IntoIterator<Item = &'a str>
+        ) -> Option<Vec<f32>> {
+
+        Option::None
+    }
+
 }
 
 pub fn tokenize(query: &str) -> Vec<String> {
@@ -78,7 +107,7 @@ mod tests {
     #[test]
     fn test_load_txt() {
         let path = Path::new("toy_embed.txt");
-        let emb = load_txt(path);
+        let emb = Embeddings::load_txt(path);
 
         assert_eq!(emb.dim, 4);
 
