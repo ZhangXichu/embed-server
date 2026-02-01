@@ -4,3 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+walkdir = "2"
+anyhow = "1"
+pdf-extract = "0.10.0"
+regex = "1"
