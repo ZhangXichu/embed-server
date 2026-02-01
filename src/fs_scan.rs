@@ -2,7 +2,15 @@ use regex::Regex;
 use anyhow::{Context, Result};
 use std::path::Path;
 
-pub fn process_pdf(path: &Path, max_chars: usize) -> Result<()> {
+fn normalize_ws(s: &str) -> String {
+    // Collapses all whitespace to single spaces.
+    s.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Chunks text extracted from a PDF file located at `path` into segments
+/// not exceeding `max_chars` in length. Sentences are determined by
+/// punctuation marks (., !, ?).
+pub fn chunk_pdf_text(path: &Path, max_chars: usize) -> Result<()> {
     let path = path
         .canonicalize()
         .with_context(|| format!("Failed to canonicalize path: {}", path.display()))?;
@@ -25,17 +33,24 @@ pub fn process_pdf(path: &Path, max_chars: usize) -> Result<()> {
         let body = caps.get(1).unwrap().as_str();
         let punct = caps.get(2).unwrap().as_str();
 
-        let sentence = format!("{}{}", body.trim(), punct);
+        let mut sentence = normalize_ws(body);
+        if sentence.is_empty() {
+            continue;
+        }
+        sentence.push_str(punct);
+
+        //////// debug ////////////////
         if !sentence.trim().is_empty() {
             print!("{}. {} \n", counter, sentence);
             counter += 1;
         }
+        ////////////////////////////////
     }
 
     // Remainder (no ending punctuation)
     let rem = text[last_end..].trim();
     if !rem.is_empty() {
-        print!("{} \n", rem);
+        print!("Remainder: {} \n", rem);
     }
 
     Ok(())
