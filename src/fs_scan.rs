@@ -11,6 +11,9 @@ fn normalize_ws(s: &str) -> String {
 /// not exceeding `max_chars` in length. Sentences are determined by
 /// punctuation marks (., !, ?).
 pub fn chunk_pdf_text(path: &Path, max_chars: usize) -> Result<()> {
+    let mut chunks: Vec<String> = Vec::new();
+    let mut cur = String::new();
+
     let path = path
         .canonicalize()
         .with_context(|| format!("Failed to canonicalize path: {}", path.display()))?;
@@ -39,12 +42,7 @@ pub fn chunk_pdf_text(path: &Path, max_chars: usize) -> Result<()> {
         }
         sentence.push_str(punct);
 
-        //////// debug ////////////////
-        if !sentence.trim().is_empty() {
-            print!("{}. {} \n", counter, sentence);
-            counter += 1;
-        }
-        ////////////////////////////////
+        create_chunks(&sentence, max_chars, &mut cur, &mut chunks);
     }
 
     // Remainder (no ending punctuation)
@@ -74,6 +72,55 @@ fn hard_split(s: &str, max_chars: usize) -> Vec<&str> {
         parts.push(&s[start..]);
     }
     parts
+}
+
+fn create_chunks(
+    sentence: &str,
+    max_chars: usize,
+    cur: &mut String,
+    chunks: &mut Vec<String>,
+) {
+    let s = sentence.trim();
+    if s.is_empty() {
+        return;
+    }
+
+    // If one sentence is longer than a chunk, flush current and hard-split.
+    if s.chars().count() > max_chars {
+        if !cur.trim().is_empty() {
+            chunks.push(cur.trim().to_string());
+            cur.clear();
+        }
+        for part in hard_split(s, max_chars) {
+            let p = part.trim();
+            if !p.is_empty() {
+                //////////// Debug  /////////////////////
+                println!("-- {}", p);
+                /////////////////////////////////
+
+                chunks.push(p.to_string());
+            }
+        }
+        return;
+    }
+
+    if cur.is_empty() {
+        cur.push_str(s);
+    } else {
+        let new_len = cur.chars().count() + 1 + s.chars().count();
+        if new_len <= max_chars {
+            cur.push(' ');
+            cur.push_str(s);
+        } else {
+            //////////// Debug  /////////////////////
+            println!("-- {}", cur.trim());
+            /////////////////////////////////
+
+            chunks.push(cur.trim().to_string());
+            cur.clear();
+            cur.push_str(s);
+        }
+    }
 }
 
 

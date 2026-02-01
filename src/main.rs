@@ -9,5 +9,5 @@ fn main() {
     // println!("parsed tokens {:?}", tokens);
 
     let pdf_patth = std::path::Path::new("data/text/Foucault Subject and Power.pdf");
-    fs_scan::chunk_pdf_text(pdf_patth, 5000).unwrap();
+    fs_scan::chunk_pdf_text(pdf_patth, 900).unwrap();
 }
