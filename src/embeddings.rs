@@ -84,6 +84,47 @@ impl Embeddings {
         embeddings
     }
 
+    pub fn get_embedding(&self, token: &str) -> Option<Vec<f32>> {
+        let &row = self.vocab.get(token)?;
+        let start = row * self.dim;
+        let end = start + self.dim;
+        Some(self.data[start..end].to_vec())
+    }
+
+    pub fn embed_query(&self, tokens: Vec<String>) -> Option<Vec<f32>> {
+        let mut sum = vec![0.0f32; self.dim];
+        let mut count = 0usize;
+
+        for token in tokens {
+            let &row = match self.vocab.get(&token) {
+                Some(r) => r,
+                None => continue,
+            };
+
+            let start = row * self.dim;
+            let end = start + self.dim;
+            let vec = &self.data[start..end];
+
+            for (s, &v) in sum.iter_mut().zip(vec.iter()) {
+                *s += v;
+            }
+
+            count += 1;
+        }
+
+        if count == 0 {
+            return None;
+        }
+
+        // averaging
+        let inv = 1.0 / count as f32;
+        for v in &mut sum {
+            *v *= inv;
+        }
+
+        Some(sum)
+    }
+
     pub fn embed_tokens<'a>(
             &self,
             tokens: impl IntoIterator<Item = &'a str>
@@ -219,5 +260,30 @@ mod tests {
     fn test_tokenize() {
         let query = "  the   best   chess  openning    ";
         assert_eq!(tokenize(query), vec!["best", "chess", "openning"]);
+    }
+
+    #[test]
+    fn test_embed_query() {
+        let path = Path::new("toy_embed.txt");
+        let emb = Embeddings::load_txt(path);
+
+        // Average of king + queen
+        // king:  0.1 0.2 0.3 0.4
+        // queen: 1.0 2.0 3.0 4.0
+        // avg:   0.55 1.10 1.65 2.20
+        let tokens = vec!["king".to_string(), "queen".to_string()];
+        let v = emb
+            .embed_query(tokens)
+            .expect("expected Some(vec) for in-vocab tokens");
+
+        let expected = vec![0.55, 1.10, 1.65, 2.20];
+
+        assert_eq!(v.len(), expected.len());
+        for (i, (a, b)) in v.iter().zip(expected.iter()).enumerate() {
+            assert!(
+                (a - b).abs() < 1e-6,
+                "mismatch at index {i}: {a} vs {b}"
+            );
+        }
     }
 }
