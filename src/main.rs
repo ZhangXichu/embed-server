@@ -1,5 +1,6 @@
 mod embeddings;
 mod fs_scan;
+mod data_saver;
 
 fn main() {
     let path = std::path::Path::new("data/cc.en.300.vec");

@@ -1,6 +1,7 @@
 use regex::Regex;
 use anyhow::{Context, Result};
 use std::path::Path;
+use crate::data_saver::DataSaver;
 
 fn normalize_ws(s: &str) -> String {
     // Collapses all whitespace to single spaces.
@@ -13,6 +14,7 @@ fn normalize_ws(s: &str) -> String {
 pub fn chunk_pdf_text(path: &Path, max_chars: usize) -> Result<()> {
     let mut chunks: Vec<String> = Vec::new();
     let mut cur = String::new();
+    let mut data_saver = DataSaver::new()?;
 
     let path = path
         .canonicalize()
@@ -42,7 +44,7 @@ pub fn chunk_pdf_text(path: &Path, max_chars: usize) -> Result<()> {
         }
         sentence.push_str(punct);
 
-        create_chunks(&sentence, max_chars, &mut cur, &mut chunks);
+        create_chunks(&sentence, max_chars, &mut cur, &mut chunks, &mut data_saver)?;
     }
 
     // Remainder (no ending punctuation)
@@ -79,29 +81,34 @@ fn create_chunks(
     max_chars: usize,
     cur: &mut String,
     chunks: &mut Vec<String>,
-) {
+    data_saver: &mut DataSaver,
+) -> Result<()> {
     let s = sentence.trim();
     if s.is_empty() {
-        return;
+        return Ok(());
     }
 
     // If one sentence is longer than a chunk, flush current and hard-split.
     if s.chars().count() > max_chars {
         if !cur.trim().is_empty() {
-            chunks.push(cur.trim().to_string());
+            let chunk_text = cur.trim().to_string();
+            chunks.push(chunk_text.clone());
+            data_saver.save_chunk(chunk_text)?;
             cur.clear();
         }
         for part in hard_split(s, max_chars) {
             let p = part.trim();
             if !p.is_empty() {
                 //////////// Debug  /////////////////////
-                println!("-- {}", p);
+                // println!("-- {}", p);
                 /////////////////////////////////
 
-                chunks.push(p.to_string());
+                let chunk_text = p.to_string();
+                chunks.push(chunk_text.clone());
+                data_saver.save_chunk(chunk_text)?;
             }
         }
-        return;
+        return Ok(());
     }
 
     if cur.is_empty() {
@@ -113,14 +120,18 @@ fn create_chunks(
             cur.push_str(s);
         } else {
             //////////// Debug  /////////////////////
-            println!("-- {}", cur.trim());
+            // println!("-- {}", cur.trim());
             /////////////////////////////////
 
-            chunks.push(cur.trim().to_string());
+            let chunk_text = cur.trim().to_string();
+            chunks.push(chunk_text.clone());
+            data_saver.save_chunk(chunk_text)?;
             cur.clear();
             cur.push_str(s);
         }
     }
+    
+    Ok(())
 }
 
 
